@@ -33,30 +33,33 @@ public class Expect {
 
     /** 内部クラス Reader から結果を受け取るため */
     private String readerResult;
+    /** 内部クラス Reader で待ち受けパターンを見つけることができた */
+    private boolean patternFound;
 
     /**
      * タイムアウトは気にせず、与えられたパターンが出現するまで InputStream を読み込む。
      */
     private class Reader implements Runnable {
         private byte[] waitPattern;
-        public Reader(byte[] waitPattern) {
+        Reader(byte[] waitPattern) {
             this.waitPattern = waitPattern;
         }
         @Override
         public void run() {
             readerResult = null;
+            patternFound = false;
             byte[] lastTail = new byte[waitPattern.length];
             int lastAvail = 0; // lastTail 中の有効バイト数
             byte[] currTail = new byte[waitPattern.length];
             byte[] bytes = new byte[2048];
             // 読み取れる長さが事前に分からないため、バッファに OutputStream を利用する。
             ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-            for (;;) {
+            while (!patternFound) {
                 int nRead;
                 try {
                     nRead = inputStream.read(bytes);
                 } catch (IOException e) {
-                    e.printStackTrace();
+                    logger.debug("read() interrupted.", e);
                     break;
                 }
                 if (nRead < 0) {
@@ -70,7 +73,8 @@ public class Expect {
                     System.arraycopy(bytes, nRead - waitPattern.length, currTail, 0, waitPattern.length);
                     if (Arrays.equals(currTail, waitPattern)) {
                         // buffer への取り込みは充分。ここまでを返す
-                        break;
+                        patternFound = true;
+                        continue;
                     }
                     // 次回の比較に備えて末尾を保存しておく
                     System.arraycopy(bytes, nRead - lastTail.length, lastTail, 0, lastTail.length);
@@ -89,7 +93,8 @@ public class Expect {
                 System.arraycopy(lastTail, lastAvail - (waitPattern.length - nRead), currTail, 0, waitPattern.length - nRead);
                 System.arraycopy(bytes, 0, currTail, waitPattern.length - nRead, nRead);
                 if (Arrays.equals(waitPattern, currTail)) {
-                    break;
+                    patternFound = true;
+                    continue;
                 }
                 System.arraycopy(currTail, 0, lastTail, 0, currTail.length);
                 lastAvail = currTail.length;
@@ -99,6 +104,8 @@ public class Expect {
     }
 
     public Expect() {
+        this.inputStream = System.in;
+        this.outputStream = System.out;
         charset = Charset.forName("UTF-8");
     }
 
@@ -131,7 +138,7 @@ public class Expect {
      * @param timeout 時間切れまでのミリ秒
      * @return 時間切れにならずに読み取ったバイト列から構成した文字列
      */
-    public String expect(String pattern, long timeout) {
+    public String expect(String pattern, long timeout) throws PatternNotFoundException {
         byte[] waitPattern = pattern.getBytes(charset);
         Reader reader = new Reader(waitPattern);
         Thread th = new Thread(reader);
@@ -143,8 +150,10 @@ public class Expect {
                 th.join();
             }
         } catch (InterruptedException e) {
-            e.printStackTrace();
+            logger.warn("expect failed to join sub thread. Id=" + th.getId(), e);
         }
+        if (!patternFound)
+            throw new PatternNotFoundException(pattern);
         return readerResult;
     }
 

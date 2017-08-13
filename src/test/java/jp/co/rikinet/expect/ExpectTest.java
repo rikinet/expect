@@ -60,19 +60,56 @@ public class ExpectTest {
 
     @Test
     public void testExpect() {
-        String str;
+        String str = null;
         long start = System.currentTimeMillis();
-        str = talker.expect("login: ", 5000L);
-        System.out.println(System.currentTimeMillis() - start);
-        talker.sendLine("manager\r");
-        str = talker.expect("Password: ", 1000L);
-        System.out.println(System.currentTimeMillis() - start);
-        talker.sendLine("friend\r");
-        str = talker.expect("Manager > ", 1000L);
-        System.out.println(System.currentTimeMillis() - start);
-        talker.sendLine("help\r");
-        str = talker.expect("Manager > ", 1000L);
+        try {
+            str = talker.expect("login: ", 5000L);
+            System.out.println(System.currentTimeMillis() - start);
+            talker.sendLine("manager\r");
+            str = talker.expect("Password: ", 1000L);
+            System.out.println(System.currentTimeMillis() - start);
+            talker.sendLine("friend\r");
+            str = talker.expect("Manager > ", 1000L);
+            System.out.println(System.currentTimeMillis() - start);
+            talker.sendLine("help\r");
+        } catch (PatternNotFoundException e) {
+            e.printStackTrace();
+            fail();
+        }
+        try {
+            str = talker.expect("Manager > ", 1000L);
+        } catch (PatternNotFoundException e) {
+            e.printStackTrace();
+        }
         System.out.println(System.currentTimeMillis() - start);
         assertThat(str, is(containsString("GS908M")));
+    }
+
+    @Test
+    public void badPrompt() {
+        String str = null;
+        long start = System.currentTimeMillis();
+
+        try {
+            str = talker.expect("login: ", 5000L);
+            System.out.println(System.currentTimeMillis() - start);
+            talker.sendLine("manager\r");
+            str = talker.expect("Password: ", 1000L);
+            System.out.println(System.currentTimeMillis() - start);
+            talker.sendLine("friend\r");
+            str = talker.expect("Manager > ", 1000L);
+            System.out.println(System.currentTimeMillis() - start);
+        } catch (PatternNotFoundException e) {
+            e.printStackTrace();
+            fail();
+        }
+        talker.sendLine("help\r");
+        try {
+            str = talker.expect("Manager ? ", 2000L); // プロンプトを間違えてタイムアウトをねらう
+            fail();
+        } catch (PatternNotFoundException e) {
+            assertThat(e.getMessage(), is(containsString("not found")));
+        }
+        System.out.println(System.currentTimeMillis() - start);
     }
 }
