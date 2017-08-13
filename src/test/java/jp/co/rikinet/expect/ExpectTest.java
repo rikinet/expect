@@ -18,6 +18,7 @@ import java.nio.charset.Charset;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.fail;
 
@@ -49,8 +50,6 @@ public class ExpectTest {
         if (client == null)
             return;
         try {
-//            client.getOutputStream().close();
-//            client.getInputStream().close();
             client.disconnect();
         } catch (IOException e) {
             e.printStackTrace();
@@ -109,6 +108,34 @@ public class ExpectTest {
             fail();
         } catch (PatternNotFoundException e) {
             assertThat(e.getMessage(), is(containsString("not found")));
+        }
+        System.out.println(System.currentTimeMillis() - start);
+    }
+
+    @Test
+    public void testEof() {
+        String str = null;
+        long start = System.currentTimeMillis();
+
+        try {
+            str = talker.expect("login: ", 5000L);
+            System.out.println(System.currentTimeMillis() - start);
+            talker.sendLine("manager\r");
+            str = talker.expect("Password: ", 1000L);
+            System.out.println(System.currentTimeMillis() - start);
+            talker.sendLine("friend\r");
+            str = talker.expect("Manager > ", 1000L);
+            System.out.println(System.currentTimeMillis() - start);
+        } catch (PatternNotFoundException e) {
+            e.printStackTrace();
+            fail();
+        }
+        talker.sendLine("exit\r");
+        try {
+            str = talker.expect("Manager > ", 2000L);
+            assertThat(str, nullValue());
+        } catch (PatternNotFoundException e) {
+            fail();
         }
         System.out.println(System.currentTimeMillis() - start);
     }

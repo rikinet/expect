@@ -35,6 +35,7 @@ public class Expect {
     private String readerResult;
     /** 内部クラス Reader で待ち受けパターンを見つけることができた */
     private boolean patternFound;
+    private boolean eofFound;
 
     /**
      * タイムアウトは気にせず、与えられたパターンが出現するまで InputStream を読み込む。
@@ -48,6 +49,7 @@ public class Expect {
         public void run() {
             readerResult = null;
             patternFound = false;
+            eofFound = false;
             byte[] lastTail = new byte[waitPattern.length];
             int lastAvail = 0; // lastTail 中の有効バイト数
             byte[] currTail = new byte[waitPattern.length];
@@ -63,6 +65,7 @@ public class Expect {
                     break;
                 }
                 if (nRead < 0) {
+                    eofFound = true;
                     break;
                 }
                 buffer.write(bytes, 0, nRead);
@@ -136,7 +139,7 @@ public class Expect {
      * コマンドラインインターフェースでプロンプトを待つ。
      * @param pattern 待ち受ける文字列
      * @param timeout 時間切れまでのミリ秒
-     * @return 時間切れにならずに読み取ったバイト列から構成した文字列
+     * @return 時間切れにならずに読み取ったバイト列から構成した文字列。EOF で入力が途切れたときは null
      */
     public String expect(String pattern, long timeout) throws PatternNotFoundException {
         byte[] waitPattern = pattern.getBytes(charset);
@@ -152,6 +155,8 @@ public class Expect {
         } catch (InterruptedException e) {
             logger.warn("expect failed to join sub thread. Id=" + th.getId(), e);
         }
+        if (eofFound)
+            return null;
         if (!patternFound)
             throw new PatternNotFoundException(pattern);
         return readerResult;
